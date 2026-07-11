@@ -14,10 +14,10 @@ async function connectDb() {
       console.log("✅ Using previous database connection.");
       return;
     }
-
   }
 
   try {
+    // ⚠️ CRITICAL: Ensure this variable name matches your .env.local exactly!
     if (!process.env.MONGODB_URL) {
       throw new Error("❌ MONGODB_URL is not defined in environment variables.");
     }
@@ -28,27 +28,11 @@ async function connectDb() {
     connection.isConnected = db.connections[0].readyState;
   } catch (error) {
     console.error("❌ Database connection error:", error);
-    process.exit(1); // Exit the process if connection fails
+    
+    // 🛑 REMOVED process.exit(1) from here!
+    // Instead, re-throw the error so your API route can safely log it and show it to you.
+    throw error; 
   }
 }
 
-// async function disconnectDb() {
-//   if (connection.isConnected) {
-//     try {
-//       await mongoose.disconnect();
-//       connection.isConnected = false;
-//       console.log("🔴 Database disconnected.");
-//     } catch (error) {
-//       console.error("❌ Error disconnecting database:", error);
-//     }
-//   }
-// }
-
-// Automatically disconnect the database when the process exits
-process.on("SIGINT", async () => {
-  // await disconnectDb();
-  process.exit(0);
-});
-
 export { connectDb };
-
