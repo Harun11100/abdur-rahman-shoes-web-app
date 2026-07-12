@@ -30,9 +30,16 @@ const UserSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
-    image: {
-      type: String,
-      default: "", // Useful if you add profile picture uploads later
+    profileImage: {
+      url: {
+        type: String,
+        default: "",
+      },
+
+      public_id: {
+        type: String,
+        default: "",
+      },
     },
     isVerified: {
       type: Boolean,
