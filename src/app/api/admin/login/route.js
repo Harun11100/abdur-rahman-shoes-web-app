@@ -1,13 +1,14 @@
+import { connectDb } from "@/app/utils/db";
 import Admin from "@/model/Admin";
 import User from "@/model/User";
 import { NextResponse } from "next/server";
 // import dbConnect from "@/lib/dbConnect"; // Ensure you import your DB connection function
-// import bcrypt from "bcryptjs"; // Use this if your passwords are encrypted/hashed
+import bcrypt from "bcryptjs"; // Use this if your passwords are encrypted/hashed
 
 export async function POST(request) {
   try {
     // CRITICAL: Ensure database connection is active before running queries
-    // await dbConnect();
+     await connectDb(); 
 
     // 1. Extract body content safely
     const body = await request.json();
