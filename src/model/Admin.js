@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const UserSchema = new mongoose.Schema(
+const AdminSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -27,7 +27,7 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      default: "manager",
+      default: "admin",
     },
 
     image: {
@@ -54,6 +54,6 @@ const UserSchema = new mongoose.Schema(
 
 // ⚠️ Next.js Hot-Reload Protection:
 // Check if the model already exists before compiling a new one.
-const User = mongoose.models.User || mongoose.model("User", UserSchema);
+const Admin = mongoose.models.Admin || mongoose.model("Admin", AdminSchema);
 
-export default User;
+export default Admin;

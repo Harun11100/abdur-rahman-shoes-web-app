@@ -9,7 +9,7 @@ export async function POST(request) {
     await connectDb();
 
     // 2. Parse incoming body data
-    const { name, email, password } = await request.json();
+    const { name, email, password, image } = await request.json();
 
     // 3. Simple check if user already exists
     const existingUser = await User.findOne({ email });
@@ -25,10 +25,11 @@ export async function POST(request) {
       name,
       email,
       password, // Note: In production, hash this first using bcryptjs!
+      image
     });
 
     return NextResponse.json(
-      { success: true, data: { id: newUser._id, name: newUser.name, email: newUser.email } },
+      { success: true, data: { id: newUser._id, name: newUser.name, email: newUser.email, image: newUser.image } },
       { status: 201 }
     );
 
