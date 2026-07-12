@@ -1,7 +1,15 @@
 import mongoose from "mongoose";
 
 const ProductSchema = new mongoose.Schema(
-  {
+  { 
+    prodImage:[{
+      public_id: {
+        type: String
+      },
+      url: {
+        type: String
+      }
+    }],
     prodCode: {
       type: String,
       required: [true, "Please provide a unique base SKU or product code."],

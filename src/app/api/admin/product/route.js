@@ -19,7 +19,8 @@ export async function POST(request) {
       selectedSize, 
       sizeQuantities, 
       costPrice, 
-      sellingPrice 
+      sellingPrice,
+      images
     } = body;
 
     // Format the SKU safely to prevent lowercase token fragmentation
@@ -60,7 +61,8 @@ export async function POST(request) {
         category: selectedCategory,
         costPrice: Number(costPrice) || 0,
         sellingPrice: Number(sellingPrice),
-        sizeQuantities: sizeQuantities || {}, // Saves the initial key-value dictionary object
+        sizeQuantities: sizeQuantities || {},
+        prodImage: images || {} // Saves the initial key-value dictionary object
       });
 
       return NextResponse.json(
