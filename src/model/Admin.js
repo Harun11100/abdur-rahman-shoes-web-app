@@ -46,9 +46,14 @@ const AdminSchema = new mongoose.Schema(
     },
 
     image: {
-      type: String,
-      default: null,
-      trim: true,
+      public_id: {
+            type: String,
+            default: "",
+      },
+      url: {
+            type: String,
+            default: "",
+      },
     },
 
     isActive: {
