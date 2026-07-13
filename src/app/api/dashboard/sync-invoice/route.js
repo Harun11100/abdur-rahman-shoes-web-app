@@ -29,7 +29,7 @@ export async function POST(request) {
 
     // 2. Update the product catalog array quantities inside MongoDB
     await Product.findOneAndUpdate(
-      { prodCode: updatedModelSku.toUpperCase() },
+      { prodCode: updatedModelSku},
       { $set: { sizeQuantities: updatedStockQty } } // Syncs size structure directly
     );
 
