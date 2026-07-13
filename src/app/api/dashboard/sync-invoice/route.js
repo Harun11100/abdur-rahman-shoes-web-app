@@ -30,7 +30,7 @@ export async function POST(request) {
     // 2. Update the product catalog array quantities inside MongoDB
     await Product.findOneAndUpdate(
       { model: updatedModelSku.toUpperCase() },
-      { $set: { sizes: updatedStockQty } } // Syncs size structure directly
+      { $set: { sizeQuantities: updatedStockQty } } // Syncs size structure directly
     );
 
     return Response.json({ success: true, data: newSale });
