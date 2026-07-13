@@ -12,44 +12,77 @@ export async function GET(request) {
     if (!q) {
       return NextResponse.json({
         success: true,
-        suggestions: []
+        suggestions: [],
       });
     }
 
     const cleaned = q.trim();
 
-    // 1. Efficiently query only the matching records
     const products = await Product.find({
       $or: [
-        { prodCode: { $regex: cleaned, $options: "i" } },
-        { prodName: { $regex: cleaned, $options: "i" } }
-      ]
+        {
+          prodCode: {
+            $regex: cleaned,
+            $options: "i",
+          },
+        },
+        {
+          prodName: {
+            $regex: cleaned,
+            $options: "i",
+          },
+        },
+        {
+          modelNumber: {
+            $regex: cleaned,
+            $options: "i",
+          },
+        },
+      ],
     })
-    .select("prodCode prodName price sizes") // Only fetch what's actually needed
-    .limit(10)
-    .lean(); // Converts to plain JS objects for faster processing and lower memory usage
+      .select(
+        "prodCode prodName modelNumber sellingPrice sizeQuantities"
+      )
+      .limit(10)
+      .lean();
 
-    // 2. Map database fields to match React Native properties (model & name)
+
+    // Format response for React Native
     const formattedSuggestions = products.map((product) => ({
+      _id: product._id,
+
+      // Keep frontend compatibility
       model: product.prodCode,
       name: product.prodName,
-      price: product.price,
-      sizes: product.sizes
+
+      price: product.sellingPrice,
+
+      // Convert MongoDB Map into normal object
+      sizes: product.sizeQuantities || {},
+
+      // Original database fields if needed later
+      prodCode: product.prodCode,
+      prodName: product.prodName,
+      modelNumber: product.modelNumber,
     }));
+
 
     return NextResponse.json({
       success: true,
-      suggestions: formattedSuggestions
+      suggestions: formattedSuggestions,
     });
 
   } catch (error) {
     console.error("Search Error:", error);
+
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error"
+        message: "Internal Server Error",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
