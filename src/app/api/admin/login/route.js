@@ -2,22 +2,24 @@ import { connectDb } from "@/app/utils/db";
 import Admin from "@/model/Admin";
 import User from "@/model/User";
 import { NextResponse } from "next/server";
-// import dbConnect from "@/lib/dbConnect"; // Ensure you import your DB connection function
-import bcrypt from "bcryptjs"; // Use this if your passwords are encrypted/hashed
+import bcrypt from "bcryptjs";
 
 export async function POST(request) {
   try {
-    // CRITICAL: Ensure database connection is active before running queries
-     await connectDb(); 
+    // Connect to the database
+    await connectDb();
 
-    // 1. Extract body content safely
+    // Parse request body
     const body = await request.json();
     const { email, password, role } = body;
 
-    // 2. Validate input baseline constraints
+    // Validate required fields
     if (!email || !password || !role) {
       return NextResponse.json(
-        { success: false, message: "Missing security credentials or missing target system role." },
+        {
+          success: false,
+          message: "Email, password, and role are required.",
+        },
         { status: 400 }
       );
     }
@@ -25,59 +27,99 @@ export async function POST(request) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanRole = role.trim().toLowerCase();
 
-    // 3. Handle authorization verification branching depending on role
-    let userRecord = null;
+    let userRecord;
 
+    // Find user based on role and explicitly include password
     if (cleanRole === "admin") {
-      userRecord = await Admin.findOne({ email: cleanEmail });
+      userRecord = await Admin.findOne({
+        email: cleanEmail,
+      }).select("+password");
     } else if (cleanRole === "manager") {
-      userRecord = await User.findOne({ email: cleanEmail });
+      userRecord = await User.findOne({
+        email: cleanEmail,
+      }).select("+password");
     } else {
       return NextResponse.json(
-        { success: false, message: "Unauthorized authorization scope layout requested." },
+        {
+          success: false,
+          message: "Invalid role.",
+        },
         { status: 400 }
       );
     }
 
-    // 4. Handle account mismatch/not found failures
+    // User not found
     if (!userRecord) {
       return NextResponse.json(
-        { success: false, message: "Invalid credentials. Please verify data and try again." },
+        {
+          success: false,
+          message: "Invalid email or password.",
+        },
         { status: 401 }
       );
     }
 
-    // FIXED: Password Matching Logic
- 
-    // Option B: If you are using hashed passwords with bcrypt (Highly Recommended):
-    const isPasswordCorrect = await bcrypt.compare(password, userRecord.password);
+    // Safety check
+    if (!userRecord.password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Password not found for this account.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // Compare hashed password
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      userRecord.password
+    );
 
     if (!isPasswordCorrect) {
       return NextResponse.json(
-        { success: false, message: "Invalid credentials. Please verify data and try again." },
+        {
+          success: false,
+          message: "Invalid email or password.",
+        },
         { status: 401 }
       );
     }
 
-    // 5. Return sanitized data back to client application layouts
+    // Optional: Update last login for admins
+    if (cleanRole === "admin") {
+      userRecord.lastLogin = new Date();
+      await userRecord.save();
+    }
+
+    // Remove password before sending response
+    const user = userRecord.toObject();
+    delete user.password;
+
     return NextResponse.json(
       {
         success: true,
-        message: "Authentication successful.",
+        message: "Login successful.",
         data: {
-          id: userRecord._id || userRecord.id, // Mongoose defaults to _id
-          name: userRecord.name,
-          email: userRecord.email,
-          role: userRecord.role || cleanRole, // fallback if role isn't explicitly saved in DB field
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          employeeId: user.employeeId,
+          role: user.role,
+          image: user.image,
+          isVerified: user.isVerified,
         },
       },
       { status: 200 }
     );
-
   } catch (error) {
-    console.error("Authentication router engine failure:", error);
+    console.error("Authentication Error:", error);
+
     return NextResponse.json(
-      { success: false, message: "Internal server error occurred processing configuration profile." },
+      {
+        success: false,
+        message: "Internal server error.",
+      },
       { status: 500 }
     );
   }
