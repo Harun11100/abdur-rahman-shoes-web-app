@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { connectDb } from "@/app/utils/db";
 import Product from "@/model/Product";
 
-// Disable route response caching to ensure live inventory counts display instantly
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
@@ -11,72 +10,60 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q");
+    
+    // Parse page and limit query params
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const skip = (page - 1) * limit;
 
     let products = [];
+    let hasMore = false;
 
     if (q && q.trim() !== "") {
-      // --- Case A: Search query is active (Fetch filtered suggestions) ---
       const cleaned = q.trim();
-
-      products = await Product.find({
+      const queryFilter = {
         $or: [
-          {
-            prodCode: {
-              $regex: cleaned,
-              $options: "i",
-            },
-          },
-          {
-            prodName: {
-              $regex: cleaned,
-              $options: "i",
-            },
-          },
-          {
-            modelNumber: {
-              $regex: cleaned,
-              $options: "i",
-            },
-          },
+          { prodCode: { $regex: cleaned, $options: "i" } },
+          { prodName: { $regex: cleaned, $options: "i" } },
+          { modelNumber: { $regex: cleaned, $options: "i" } },
         ],
-      })
-        .select(
-          "prodImage prodCode prodName modelNumber costPrice sellingPrice sizeQuantities"
-        )
-        .limit(10)
+      };
+
+      // Get total count matching search to determine if there are more items
+      const totalMatching = await Product.countDocuments(queryFilter);
+      hasMore = skip + limit < totalMatching;
+
+      products = await Product.find(queryFilter)
+        .select("prodImage prodCode prodName modelNumber costPrice sellingPrice sizeQuantities")
+        .skip(skip)
+        .limit(limit)
         .lean();
     } else {
-      // --- Case B: Initial catalog load (Fetch all/recent items) ---
+      // General catalog load (No active search query)
+      const totalProducts = await Product.countDocuments({});
+      hasMore = skip + limit < totalProducts;
+
       products = await Product.find({})
-        .select(
-          "prodImage prodCode prodName modelNumber costPrice sellingPrice sizeQuantities"
-        )
-        .sort({ updatedAt: -1 }) // Show recently updated products first
-        .limit(50) // Adjust limit as needed for your page sizes
+        .select("prodImage prodCode prodName modelNumber costPrice sellingPrice sizeQuantities")
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
         .lean();
     }
 
-    // Format response dynamically for React Native mapping structure
+    // Format response values safely
     const formattedProducts = products.map((product) => ({
       _id: product._id,
-      id: product._id, // Add id as string for FlatList keyExtractors
-
-      // Standardizing payload properties
+      id: product._id,
       name: product.prodName,
       sku: product.prodCode,
       colorway: product.modelNumber || "Standard",
       costPrice: String(product.costPrice || "0"),
       sellingPrice: String(product.sellingPrice || "0"),
       images: product.prodImage || [],
-
-      // Keeps original suggestions array fields intact
       model: product.prodCode,
       price: product.sellingPrice,
-
-      // Convert Map schema values safely
       sizes: product.sizeQuantities || {},
-
-      // Original database fields kept for backward compatibility
       prodCode: product.prodCode,
       prodName: product.prodName,
       modelNumber: product.modelNumber,
@@ -84,23 +71,16 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      // Supporting both FlatList initialization and live UI query filtering
       data: formattedProducts,
       suggestions: formattedProducts, 
+      hasMore, // Mobile client uses this to stop scroll fetching
     });
 
   } catch (error) {
     console.error("Fetch Products Route Error:", error);
-
     return NextResponse.json(
-      {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-      },
-      {
-        status: 500,
-      }
+      { success: false, message: "Internal Server Error", error: error.message },
+      { status: 500 }
     );
   }
 }
