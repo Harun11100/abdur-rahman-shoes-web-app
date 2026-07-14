@@ -54,7 +54,7 @@ export async function GET(request) {
       // Keep frontend compatibility
       model: product.prodCode,
       name: product.prodName,
-
+      images:product.prodImage|| [], 
       price: product.sellingPrice,
 
       // Convert MongoDB Map into normal object
