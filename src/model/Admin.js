@@ -45,6 +45,11 @@ const AdminSchema = new mongoose.Schema(
       select: false, // Prevents password from being returned unless explicitly selected
     },
 
+    expoToken: {
+      type: String,
+      default: "",
+    },
+
     image: {
       public_id: {
             type: String,

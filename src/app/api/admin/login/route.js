@@ -11,7 +11,7 @@ export async function POST(request) {
 
     // Parse request body
     const body = await request.json();
-    const { email, password, role } = body;
+    const { email, password, role, expoToken } = body;
 
     // Validate required fields
     if (!email || !password || !role) {
@@ -88,6 +88,9 @@ export async function POST(request) {
 
     // Optional: Update last login for admins
     if (cleanRole === "admin") {
+        if (expoToken) {
+      userRecord.expoToken = expoToken;
+    }
       userRecord.lastLogin = new Date();
       await userRecord.save();
     }
@@ -107,7 +110,7 @@ export async function POST(request) {
           employeeId: user.employeeId,
           role: user.role,
           image: user.image,
-          isVerified: user.isVerified,
+          isVerified: user.isVerified
         },
       },
       { status: 200 }
