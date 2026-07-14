@@ -41,7 +41,7 @@ export async function GET(request) {
       ],
     })
       .select(
-        "prodCode prodName modelNumber sellingPrice sizeQuantities"
+        "prodImage prodCode prodName modelNumber sellingPrice sizeQuantities"
       )
       .limit(10)
       .lean();
@@ -54,7 +54,7 @@ export async function GET(request) {
       // Keep frontend compatibility
       model: product.prodCode,
       name: product.prodName,
-      images:product.prodImage|| [], 
+      images:product.prodImage || [], 
       price: product.sellingPrice,
 
       // Convert MongoDB Map into normal object
