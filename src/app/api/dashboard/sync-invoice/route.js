@@ -9,7 +9,6 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { freshInvoice, updatedModelSku, updatedStockQty } = body;
-    
     // Parse the data out of the text string structured by the mobile frontend
     // Example string format from React Native: "Nike Air Max (Size 42) x2"
     const parsedSize = freshInvoice.items.split("(Size ")[1]?.split(")")[0] || "N/A";

@@ -1,58 +1,63 @@
-import { connectDb } from "@/app/utils/db";
-import Product from "@/model/Product";
-import Sale from "@/model/Sale";
-import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 
-// Forces the route to be evaluated dynamically on every single incoming request
-export const dynamic = "force-dynamic";
-
-export async function POST(request) {
-  await connectDb();
-  
-  try {
-    const body = await request.json();
-    const { freshInvoice, updatedModelSku, updatedStockQty } = body;
-    
-    // String parsing optimization via RegEx matching
-    const itemsString = freshInvoice.items || "";
-    const sizeMatch = itemsString.match(/\(Size\s([^)]+)\)/);
-    const parsedSize = sizeMatch ? sizeMatch[1] : "N/A";
-    
-    const qtyMatch = itemsString.match(/x(\d+)$/);
-    const parsedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-
-    // 1. Create and save the log entry record
-    const newSale = await Sale.create({
-      id: freshInvoice.id,
-      items: freshInvoice.items,
-      amount: freshInvoice.amount, 
-      time: freshInvoice.time,
-      status: freshInvoice.status,
-      productSku: updatedModelSku,
-      quantitySold: parsedQty,
-      sizeSold: parsedSize
-    });
-
-    // 2. Safely structure dynamic field mutations
-    let updateOperation;
-
-    if (parsedSize !== "N/A") {
-      updateOperation = { 
-        $set: { [`sizeQuantities.${parsedSize}`]: updatedStockQty[parsedSize] } 
-      };
-    } else {
-      updateOperation = { $set: { sizeQuantities: updatedStockQty } };
-    }
-
-    await Product.findOneAndUpdate(
-      { prodCode: updatedModelSku.toUpperCase() },
-      updateOperation,
-      { new: true }
-    );
-
-    return NextResponse.json({ success: true, data: newSale });
-  } catch (error) {
-    console.error("Sync Error:", error);
-    return NextResponse.json({ success: false, message: error.message }, { status: 400 });
+const ProductSchema = new mongoose.Schema(
+  { 
+    prodImage:[{
+      public_id: {
+        type: String
+      },
+      url: {
+        type: String
+      }
+    }],
+    prodCode: {
+      type: String,
+      required: [true, "Please provide a unique base SKU or product code."],
+      unique: true, // Prevents catastrophic overwrites of shoe SKU lines
+      trim: true,
+      uppercase: true, // Ensures "nke-airmax" matches "NKE-AIRMAX" safely
+    },
+    prodName: {
+      type: String,
+      required: [true, "Please provide the shoe model name."],
+      trim: true,
+      maxlength: [100, "Model name cannot exceed 100 characters."],
+    },
+    modelNumber: {
+      type: String, // Tracks colorway / article code from form (e.g., Black-Crimson-004)
+      trim: true,
+      default: "",
+    },
+    category: {
+      type: String,
+      required: [true, "Please select the target customer segment."],
+      enum: ["Men", "Women", "Children"], // Extracted from form state
+    },
+    costPrice: {
+      type: Number,
+      default: 0,
+      min: [0, "Purchase cost price cannot be a negative number."],
+    },
+    sellingPrice: {
+      type: Number,
+      required: [true, "Please provide the retail MRP selling price."],
+      min: [0, "Selling price cannot be a negative number."],
+    },
+    // Matrix tracking inventory counts dynamically for EU Shoe sizes as strings
+    sizeQuantities: {
+      type: Map,
+      of: Number,
+      default: {},
+      // Example saved format inside MongoDB:
+      // "42": 12, "43": 5, "24": 2
+    },
+  },
+  {
+    timestamps: true, // Captures system-wide logistics transaction history logs
   }
-}
+);
+
+// Next.js hot-reload persistence protection rule
+const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema);
+
+export default Product;
