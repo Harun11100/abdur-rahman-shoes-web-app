@@ -42,14 +42,11 @@ export async function PATCH(request) {
       );
     }
 
-    // Update Stock
+    // Fix: Interact with sizeQuantities using native Mongoose Map API methods
     if (quantityChanges && Object.keys(quantityChanges).length > 0) {
-      const updatedSizeQuantities = {
-        ...product.sizeQuantities,
-      };
-
       for (const [size, delta] of Object.entries(quantityChanges)) {
-        const currentStock = Number(updatedSizeQuantities[size] || 0);
+        // Safe database map extraction via .get()
+        const currentStock = Number(product.sizeQuantities.get(size) || 0);
         const modifier = Number(delta || 0);
         const finalStock = currentStock + modifier;
 
@@ -63,10 +60,12 @@ export async function PATCH(request) {
           );
         }
 
-        updatedSizeQuantities[size] = String(finalStock);
+        // CRITICAL FIX: Save back to the Map as a clean Number, NOT a string!
+        product.sizeQuantities.set(size, finalStock);
       }
 
-      product.sizeQuantities = updatedSizeQuantities;
+      // Explicitly flag the Map track changes path for the Mongoose internal engine
+      product.markModified("sizeQuantities");
     }
 
     // Update Cost Price
