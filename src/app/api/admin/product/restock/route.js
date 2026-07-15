@@ -1,81 +1,124 @@
+import { NextResponse } from "next/server";
 import { connectDb } from "@/app/utils/db";
 import Product from "@/model/Product";
 
-export default async function handler(req, res) {
-  if (req.method !== "PATCH") {
-    return res.status(405).json({ success: false, message: "Method Not Allowed" });
-  }
-
+export async function PATCH(request) {
   try {
     await connectDb();
-    const { formType, prodCode, quantityChanges, costPrice, sellingPrice } = req.body;
 
-    // Validate request structure safely (quantityChanges is now optional if only updating price)
+    const body = await request.json();
+
+    const {
+      formType,
+      prodCode,
+      quantityChanges,
+      costPrice,
+      sellingPrice,
+    } = body;
+
     if (formType !== "restock_existing" || !prodCode) {
-      return res.status(400).json({ success: false, message: "Invalid payload parameters." });
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid payload parameters.",
+        },
+        { status: 400 }
+      );
     }
 
-    // 1. Fetch current profile configuration to update details safely
-    const product = await Product.findOne({ prodCode: prodCode.toUpperCase() });
+    const product = await Product.findOne({
+      prodCode: {
+        $regex: new RegExp(`^${prodCode}$`, "i"),
+      },
+    });
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Target shoe profile not found." });
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Target shoe profile not found.",
+        },
+        { status: 404 }
+      );
     }
 
-    // 2. Process the delta modifier pairs (+/- adjustments) from client payload if they exist
+    // Update Stock
     if (quantityChanges && Object.keys(quantityChanges).length > 0) {
-      const updatedSizeQuantities = { ...product.sizeQuantities };
+      const updatedSizeQuantities = {
+        ...product.sizeQuantities,
+      };
 
       for (const [size, delta] of Object.entries(quantityChanges)) {
-        const currentStock = parseInt(updatedSizeQuantities[size] || 0, 10);
-        const modifier = parseInt(delta, 10) || 0;
-        const finalCalculation = currentStock + modifier;
+        const currentStock = Number(updatedSizeQuantities[size] || 0);
+        const modifier = Number(delta || 0);
+        const finalStock = currentStock + modifier;
 
-        // Business logic safeguard: Prevent inventory counts from sinking beneath zero
-        if (finalCalculation < 0) {
-          return res.status(400).json({
-            success: false,
-            message: `Operation aborted. Adjustments would cause Size ${size} inventory status to drop into negative volumes.`,
-          });
+        if (finalStock < 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: `Size ${size} cannot have negative stock.`,
+            },
+            { status: 400 }
+          );
         }
 
-        // Convert back to string representation as managed by the front-end matrix inputs
-        updatedSizeQuantities[size] = String(finalCalculation);
+        updatedSizeQuantities[size] = String(finalStock);
       }
-      
-      // Update the storage counts directly inside the product document
+
       product.sizeQuantities = updatedSizeQuantities;
     }
 
-    // 3. Process and update cost pricing metrics if provided
-    if (costPrice !== undefined && costPrice !== null && costPrice !== "") {
-      const parsedCost = parseFloat(costPrice);
-      if (!isNaN(parsedCost) && parsedCost >= 0) {
-        product.costPrice = parsedCost;
-      } else {
-        return res.status(400).json({ success: false, message: "Invalid cost price format." });
+    // Update Cost Price
+    if (costPrice !== undefined && costPrice !== "") {
+      const parsedCost = Number(costPrice);
+
+      if (isNaN(parsedCost) || parsedCost < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Invalid cost price.",
+          },
+          { status: 400 }
+        );
       }
+
+      product.costPrice = parsedCost;
     }
 
-    // 4. Process and update selling pricing metrics if provided
-    if (sellingPrice !== undefined && sellingPrice !== null && sellingPrice !== "") {
-      const parsedSelling = parseFloat(sellingPrice);
-      if (!isNaN(parsedSelling) && parsedSelling >= 0) {
-        product.sellingPrice = parsedSelling;
-      } else {
-        return res.status(400).json({ success: false, message: "Invalid selling price format." });
+    // Update Selling Price
+    if (sellingPrice !== undefined && sellingPrice !== "") {
+      const parsedSelling = Number(sellingPrice);
+
+      if (isNaN(parsedSelling) || parsedSelling < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Invalid selling price.",
+          },
+          { status: 400 }
+        );
       }
+
+      product.sellingPrice = parsedSelling;
     }
 
-    // 5. Commit all structural changes securely to MongoDB
     await product.save();
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
-      message: "Inventory metrics and pricing sheets successfully updated inside data catalogs.",
+      message: "Inventory updated successfully.",
+      data: product,
     });
   } catch (error) {
-    console.error("Database update error:", error);
-    return res.status(500).json({ success: false, error: error.message || "Internal Server Error" });
+    console.error("PATCH Product Error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: error.message || "Internal Server Error",
+      },
+      { status: 500 }
+    );
   }
 }
