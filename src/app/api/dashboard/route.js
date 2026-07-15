@@ -35,7 +35,7 @@ export async function GET(request) {
       id: sale.id || sale._id.toString(), // Ensures the frontend reads 'id' safely
       items: sale.items,
       amount: sale.amount,
-      time: sale.time || "Just now",
+      time: sale.createdAt || "Just now",
       status: sale.status || "Paid"
     }));
 
