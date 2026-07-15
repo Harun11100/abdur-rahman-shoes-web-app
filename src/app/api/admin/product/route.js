@@ -1,131 +1,123 @@
+import { NextResponse } from "next/server";
 import { connectDb } from "@/app/utils/db";
 import Product from "@/model/Product";
-import { NextResponse } from "next/server";
 
-
-export async function POST(request) {
+export async function PATCH(request) {
   try {
-    // 1. Force state verification to avoid early pipeline disconnection drops
     await connectDb();
 
-    // 2. Parse the body structure matching your React Native dynamic payload
     const body = await request.json();
-    const { 
-      formType, 
-      prodCode, 
-      prodName, 
-      modelNumber, 
-      selectedCategory, 
-      selectedSize, 
-      sizeQuantities, 
-      costPrice, 
+
+    const {
+      formType,
+      prodCode,
+      quantityChanges,
+      costPrice,
       sellingPrice,
-      images
     } = body;
 
-    // Format the SKU safely to prevent lowercase token fragmentation
-    const formattedSKU = prodCode ? prodCode.trim().toUpperCase() : "";
-
-    if (!formattedSKU) {
+    if (formType !== "restock_existing" || !prodCode) {
       return NextResponse.json(
-        { success: false, message: "A valid unique Base SKU/Model code is required." },
+        {
+          success: false,
+          message: "Invalid payload parameters.",
+        },
         { status: 400 }
       );
     }
 
-    // ========================================================
-    // ENGINE PIPELINE A: INITIALIZE FRESH CATALOG ENTRY
-    // ========================================================
-    if (formType === "new") {
-      // Guard clause check to avoid overlapping database writes
-      const duplicatedItem = await Product.findOne({ prodCode: formattedSKU });
-      if (duplicatedItem) {
-        return NextResponse.json(
-          { success: false, message: `SKU "${formattedSKU}" already exists. Did you mean to toggle "Restock Existing"?` },
-          { status: 400 }
-        );
-      }
+    const product = await Product.findOne({
+      prodCode: {
+        $regex: new RegExp(`^${prodCode}$`, "i"),
+      },
+    });
 
-      if (!prodName?.trim() || !sellingPrice) {
-        return NextResponse.json(
-          { success: false, message: "Shoe model name and selling price are mandatory fields." },
-          { status: 400 }
-        );
-      }
-
-      // Create the record directly with the client-provided size allocation map
-      const createdShoe = await Product.create({
-        prodCode: formattedSKU,
-        prodName: prodName.trim(),
-        modelNumber: modelNumber ? modelNumber.trim() : "",
-        category: selectedCategory,
-        costPrice: Number(costPrice) || 0,
-        sellingPrice: Number(sellingPrice),
-        sizeQuantities: sizeQuantities || {},
-        prodImage: images || {} // Saves the initial key-value dictionary object
-      });
-
+    if (!product) {
       return NextResponse.json(
-        { success: true, message: "Catalog model initialized successfully.", data: createdShoe },
-        { status: 201 }
-      );
-    }
-
-    // ========================================================
-    // ENGINE PIPELINE B: ATOMIC INCREMENTAL INBOUND RESTOCK
-    // ========================================================
-    if (formType === "restock") {
-      if (!selectedSize) {
-        return NextResponse.json(
-          { success: false, message: "Target variant size must be highlighted to adjust storage allocations." },
-          { status: 400 }
-        );
-      }
-
-      // Isolate the batch size change input value from the submitted dictionary entry payload
-      const batchIncrementCount = Number(sizeQuantities?.[selectedSize]) || 0;
-
-      if (batchIncrementCount <= 0) {
-        return NextResponse.json(
-          { success: false, message: "Intake restock increment value must be greater than zero." },
-          { status: 400 }
-        );
-      }
-
-      // MongoDB atomic $inc operator natively targets specific map fields by dot notation
-      const updatedShoeRegistry = await Product.findOneAndUpdate(
-        { prodCode: formattedSKU },
-        { $inc: { [`sizeQuantities.${selectedSize}`]: batchIncrementCount } },
-        { new: true, runValidators: true } // Return modified fields and execute validation schemas
-      );
-
-      if (!updatedShoeRegistry) {
-        return NextResponse.json(
-          { success: false, message: `Shoe SKU profile line "${formattedSKU}" was not found in active records.` },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json(
-        { 
-          success: true, 
-          message: `Successfully added ${batchIncrementCount} pairs to size ${selectedSize}.`, 
-          data: updatedShoeRegistry 
+        {
+          success: false,
+          message: "Target shoe profile not found.",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
-    // Catch-all fallthrough error branch logic
-    return NextResponse.json(
-      { success: false, message: "Malformed pipeline transaction parameter configuration type." },
-      { status: 400 }
-    );
+    // Update Stock
+    if (quantityChanges && Object.keys(quantityChanges).length > 0) {
+      const updatedSizeQuantities = {
+        ...product.sizeQuantities,
+      };
 
+      for (const [size, delta] of Object.entries(quantityChanges)) {
+        const currentStock = Number(updatedSizeQuantities[size] || 0);
+        const modifier = Number(delta || 0);
+        const finalStock = currentStock + modifier;
+
+        if (finalStock < 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: `Size ${size} cannot have negative stock.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        updatedSizeQuantities[size] = String(finalStock);
+      }
+
+      product.sizeQuantities = updatedSizeQuantities;
+    }
+
+    // Update Cost Price
+    if (costPrice !== undefined && costPrice !== "") {
+      const parsedCost = Number(costPrice);
+
+      if (isNaN(parsedCost) || parsedCost < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Invalid cost price.",
+          },
+          { status: 400 }
+        );
+      }
+
+      product.costPrice = parsedCost;
+    }
+
+    // Update Selling Price
+    if (sellingPrice !== undefined && sellingPrice !== "") {
+      const parsedSelling = Number(sellingPrice);
+
+      if (isNaN(parsedSelling) || parsedSelling < 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Invalid selling price.",
+          },
+          { status: 400 }
+        );
+      }
+
+      product.sellingPrice = parsedSelling;
+    }
+
+    await product.save();
+
+    return NextResponse.json({
+      success: true,
+      message: "Inventory updated successfully.",
+      data: product,
+    });
   } catch (error) {
-    console.error("⛔ [API Route Exception Error Log]:", error);
+    console.error("PATCH Product Error:", error);
+
     return NextResponse.json(
-      { success: false, error: "Database transaction execution rejected.", details: error.message },
+      {
+        success: false,
+        message: error.message || "Internal Server Error",
+      },
       { status: 500 }
     );
   }
