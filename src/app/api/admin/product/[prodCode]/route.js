@@ -24,8 +24,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Map your database schema properties to match exactly what your front-end state expects:
-    // { prodName, prodCode, selectedCategory, sizeQuantities: { "39": "4", "40": "12" } }
+    // Map database properties to match what your front-end state expects,
+    // including costPrice and sellingPrice cast explicitly as strings.
     return res.status(200).json({
       success: true,
       data: {
@@ -33,6 +33,8 @@ export default async function handler(req, res) {
         prodCode: product.prodCode,
         selectedCategory: product.category, // maps to selectedCategory on client
         sizeQuantities: product.sizeQuantities, // object containing stringified numbers, e.g., {"39": "4"}
+        costPrice: String(product.costPrice ?? "0"),
+        sellingPrice: String(product.sellingPrice ?? "0"),
       },
     });
   } catch (error) {
