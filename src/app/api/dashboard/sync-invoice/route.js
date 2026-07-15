@@ -29,6 +29,8 @@ export async function POST(request) {
       productSku: updatedModelSku,
       quantitySold: parsedQty,
       sizeSold: parsedSize,
+      customerName: freshInvoice.customerName || "",
+      customerPhone: freshInvoice.customerPhone || "",
     });
 
     // Update Product Stock
@@ -62,15 +64,22 @@ export async function POST(request) {
         },
       }));
 
-      await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Accept-Encoding": "gzip, deflate",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(messages),
-      });
+    const response = await fetch(
+  "https://exp.host/--/api/v2/push/send",
+  {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Accept-Encoding": "gzip, deflate",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(messages),
+  }
+);
+
+const json = await response.json();
+
+console.log(JSON.stringify(json, null, 2));
     }
 
     return Response.json({

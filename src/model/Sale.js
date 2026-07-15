@@ -7,50 +7,75 @@ const SaleSchema = new mongoose.Schema(
       required: [true, "Invoice unique identifier string is required"],
       unique: true,
       trim: true,
-      index: true, // Speeds up single lookup matches
+      index: true,
     },
+
     items: {
       type: String,
       required: [true, "Description string of products sold is required"],
     },
+
     amount: {
       type: Number,
-      required: [true, "Numeric amount field is required for monetary calculations"],
+      required: [
+        true,
+        "Numeric amount field is required for monetary calculations",
+      ],
       min: [0, "Transaction revenue amount cannot be negative"],
     },
+
     time: {
       type: String,
-      default: "Just now", // Preserves custom string labels passed down by mobile client
+      default: "Just now",
     },
+
     status: {
       type: String,
       required: true,
       enum: ["Paid", "Pending", "Refunded"],
       default: "Paid",
     },
+
     productSku: {
       type: String,
-      required: [true, "The model SKU linking back to the catalog item is required"],
+      required: [
+        true,
+        "The model SKU linking back to the catalog item is required",
+      ],
       trim: true,
       uppercase: true,
       index: true,
     },
+
     quantitySold: {
       type: Number,
       required: true,
       min: [1, "Must sell at least 1 unit to file an invoice log"],
     },
+
     sizeSold: {
       type: String,
       required: true,
     },
+
+    // Optional customer information
+    customerName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    customerPhone: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
-    timestamps: true, // Automatically manages createdAt and updatedAt native MongoDB dates
+    timestamps: true,
   }
 );
 
-// Prevent mongoose model re-compilation issues during Next.js Hot Module Replacement (HMR)
 const Sale = mongoose.models.Sale || mongoose.model("Sale", SaleSchema);
 
 export default Sale;
