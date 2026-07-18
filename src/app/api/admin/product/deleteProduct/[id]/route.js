@@ -32,7 +32,7 @@ export async function DELETE(request) {
     }
 
     await Product.findByIdAndDelete(id);
-
+    // Error here
     return NextResponse.json({
       success: true,
       message: "Product deleted successfully.",
